@@ -20,6 +20,7 @@ from sklearn.metrics import (
 from sklearn.ensemble import IsolationForest
 from scipy.cluster.hierarchy import dendrogram
 
+# URLs dos conjuntos de treino, teste e nomes de colunas do NSL-KDD
 NSL_TRAIN_URL = (
     "https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTrain+.txt"
 )
@@ -31,6 +32,7 @@ NSL_COLUMNS_URL = (
 )
 
 def _download(url: str, dest: Path):
+    """Baixa um arquivo se ele ainda não existir em disco."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         print(f"✓ {dest.name} already downloaded")
@@ -39,7 +41,7 @@ def _download(url: str, dest: Path):
     urllib.request.urlretrieve(url, dest)
 
 def fetch_nsl_kdd(data_dir: Path = Path("data")) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Download NSL‑KDD train/test splits and return them as DataFrames."""
+    """Baixa as partições de treino e teste do NSL-KDD e devolve-as como DataFrames."""
     fallback_names = [
         "duration","protocol_type","service","flag","src_bytes","dst_bytes",
         "land","wrong_fragment","urgent","hot","num_failed_logins",
@@ -67,20 +69,20 @@ def fetch_nsl_kdd(data_dir: Path = Path("data")) -> tuple[pd.DataFrame, pd.DataF
         print("[warn] Could not download column names:", e)
         names = fallback_names.copy()
 
-    # The dataset has an extra target and difficulty columns
+   # Adiciona colunas de alvo e dificuldade
     names += ["target", "difficulty"]
 
-    # space‑separated ⇒ use read_csv with no header
+    # Arquivos são separados por espaço; não há cabeçalho
     train = pd.read_csv(train_path, names=names)
     test = pd.read_csv(test_path, names=names)
     return train, test
 
 
 # ---------------------------------------------------------------------------
-# Pre‑processing
+# Pré-processamento
 # ---------------------------------------------------------------------------
 def preprocess(df: pd.DataFrame):
-    """One‑hot encode categoricals, standardise numerics, return X, y."""
+    """One-Hot nos categóricos, padroniza numéricos e devolve X e y."""
     df = df.copy()
     y = df["target"].apply(lambda x: 0 if x == "normal" else 1).to_numpy()
     df.drop(columns=["target", "difficulty"], inplace=True)
@@ -97,7 +99,7 @@ def preprocess(df: pd.DataFrame):
     return X.astype(np.float32), y
 
 # ---------------------------------------------------------------------------
-# PCA retaining ≥ 85 % variance
+# PCA mantendo ≥ 85 % de variância explicada
 # ---------------------------------------------------------------------------
 def pca_fit_transform(X, var_threshold=0.85, seed=42):
     pca_full = PCA(svd_solver="full", random_state=seed).fit(X)
@@ -108,7 +110,7 @@ def pca_fit_transform(X, var_threshold=0.85, seed=42):
     return T, pca
 
 # ---------------------------------------------------------------------------
-# K‑Means scratch
+# Implementação simples de K-Means
 # ---------------------------------------------------------------------------
 def kmeans_scratch(X, K, max_iter=300, tol=1e-4, seed=42):
     rng = np.random.default_rng(seed)
@@ -127,7 +129,7 @@ def kmeans_scratch(X, K, max_iter=300, tol=1e-4, seed=42):
     return labels, centroids
 
 # ---------------------------------------------------------------------------
-# Complete‑link hierarchy scratch (small N)
+#  Hierarquica complete-link (somente para N pequeno)
 # ---------------------------------------------------------------------------
 def linkage_complete(X):
     from scipy.spatial.distance import pdist, squareform
@@ -152,7 +154,7 @@ def linkage_complete(X):
     return np.array(merges)
 
 # ---------------------------------------------------------------------------
-# Isolation Forest helper
+# Helper Isolation Forest
 # ---------------------------------------------------------------------------
 def run_isolation_forest(T, y, contamination=0.01, seed=42):
     iso = IsolationForest(
